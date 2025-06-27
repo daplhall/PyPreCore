@@ -1,5 +1,5 @@
 # A post-processing dust simulator for gas models    
-PyPreCore was written as part of my thesis which can be downloaded [here](https://daplhall.github.io/pdf/DanielHallCV.pdf). Its a post-processing dust simulation to
+PyPreCore was written as part of my thesis which can be downloaded [here](https://daplhall.github.io/pdf/DanielHallThesis.pdf). Its a post-processing dust simulation to
 run with a gas background model which can be either Lagrangian and Eulerian.
 
 # Usage
