@@ -221,6 +221,103 @@ class Particles(object):
         self.v = self.v + (dt * g - cdt * (self.v - self.env.rho(self.r))) / (1 + cdt)
 
 
+class BE_sphere(object):
+    # xmin, xmax are temp? maybe NOTE
+    __slots__ = (
+        "units",
+        "rho_c",
+        "rc",
+        "xcrit",
+        "y",
+        "xmin",
+        "xmax",
+        "mu",
+        "rho",
+        "T",
+        "M",
+        "rmin",
+        "R",
+        "vg",
+    )
+
+    # sc.cgs , float, float, float, callable, float, float
+    def __init__(sphere, units, M_BE=1.0, T=lambda x: 10, drag=0.001, vg=lambda x: 0):
+        Acrit, xcrit, ycrit, mcrit = np.loadtxt(
+            "./emden-solve/crit-value.txt", unpack=True
+        )
+        xi, yi, _ = np.loadtxt("./emden-solve/rho-adim.txt", unpack=True)
+        dx = xi[1] - xi[0]
+
+        M_BE = M_BE * units.m_Sun
+        cs_sq = units.k_B * T / (units.mu * units.m_p)  # base units
+        rho_c = mcrit**2 * cs_sq**3 / (4 * np.pi * ycrit * M_BE**2 * units.G**3)
+        r_c = np.sqrt(cs_sq / (4 * np.pi * units.G * rho_c))
+        if callable(T):
+            sphere.T = T
+        else:
+            sphere.T = lambda x: T
+
+        sphere.units = units
+        sphere.rc = r_c
+        sphere.rho_c = rho_c
+        sphere.mu = units.mu
+
+        sphere.xcrit = xcrit
+        sphere.xmin = xi[0]
+        sphere.xmax = xi[-1]
+        sphere.rmin = xi[0] * r_c
+        sphere.R = xcrit * r_c
+
+        m = 4 * np.pi * np.cumsum(xi * xi * yi) * dx * rho_c * r_c**3
+        sphere.M = scilate.interp1d(xi * r_c, m)
+        sphere.y = scilate.interp1d(xi, yi, "linear")
+        sphere.rho = scilate.interp1d(xi * r_c, yi * rho_c, "linear")
+
+        r = np.linspace(sphere.rmin, sphere.R, len(xi))
+        m = sphere.M(r)
+        rho = sphere.rho(r)
+        ## To ensure that that are no out of bounds errors, this menas that M is constant out of R, rho is 0 as the sphere is stable and is equal to R
+        sphere.M = scilate.interp1d(
+            r, m, "linear", fill_value=(m[0], m[-1]), bounds_error=False
+        )
+        sphere.rho = scilate.interp1d(
+            r, rho, "linear", fill_value=(rho[0], 0), bounds_error=False
+        )  # unsure here if it should be zero
+        sphere.vg = vg
+        if callable(vg):
+            sphere.vg = vg
+        else:
+            sphere.vg = lambda x: vg
+        # fill_value = (m[0],m[-1]), bounds_error = False
+        # fill_value = (yi[0],yi[-1]), bounds_error = False
+        # fill_value= (yi[0]*rho_c,yi[-1]*rho_c), bounds_error = False
+
+    def drag(
+        self,
+        r,
+        s,
+        rho_d=1.6,
+    ):
+        """
+        This is actually the inverse stopping time.
+        so drag = 1/t_s
+
+
+        rho_d = 1.6 g/cm^3
+        """
+        rm = magnitude(r, True)
+        rho_g = self.rho(rm)
+        vth = np.sqrt(
+            8 / np.pi * self.units.k_B * self.T(rm) / (self.mu * self.units.m_p)
+        )
+        return rho_g * vth / (rho_d * s)
+        # vth =  self.units.k_B*self.T/(self.units.mu*self.units.m_p)
+
+    # def drag_coeff(self,r,particle_size):
+    # rm = magnitude(r)
+    # return self.drag*self.density(rm)/particle_size
+
+
 class DataSphere(object):
     """# rc, vg, rhog , M, T
     #  0   1     2   3  4"""
